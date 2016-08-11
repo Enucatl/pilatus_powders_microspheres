@@ -15,9 +15,10 @@ args = commandline_parser$parse_args()
 
 table = fread(args$f)
 print(table)
+min_visibility = 0.04
 
 maketable = function(csv, size, voltage) {
-    t = fread(csv)
+    t = fread(csv)[v > min_visibility]
     t[, voltage := voltage]
     t[, size := size]
     return(t)

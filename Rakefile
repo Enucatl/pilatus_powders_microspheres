@@ -1,4 +1,5 @@
 require "csv"
+require "rake/clean"
 
 datasets = CSV.table "microsphere_datasets.csv"
 
@@ -27,11 +28,12 @@ namespace :reconstruction do
 
   datasets.each do |row|
     reconstructed = row[:reconstructed]
+    CLEAN.include(reconstructed)
 
     desc "dpc_reconstruction of #{reconstructed}"
     file reconstructed => [row[:sample], row[:flat]] do |f|
       Dir.chdir "../dpc_reconstruction" do
-        sh "dpc_radiography --group /entry/data #{f.prerequisites.join(' ')}"
+        sh "dpc_radiography --drop_last --group /entry/data #{f.prerequisites.join(' ')}"
       end
     end
   end
@@ -42,6 +44,7 @@ namespace :reconstruction do
       file.write(datasets.to_csv)
     end
   end
+  CLOBBER.include("reconstructed.csv")
 
 end
 
@@ -59,6 +62,9 @@ namespace :rectangle_selection do
       sh "python #{f.prerequisites[0]} #{f.prerequisites[1]} #{f.prerequisites[2]} #{f.name}"
     end
 
+    CLOBBER.include(row[:roi])
+    CLEAN.include(row[:csv])
+
   end
 
 end
@@ -69,11 +75,13 @@ namespace :analysis do
   file "data/pixels.rds" => ["merge_datasets.R", "reconstructed.csv"] + datasets[:csv] do |f|
     sh "./#{f.prerequisites[0]} -f #{f.prerequisites[1]} -o #{f.name}"
   end
+  CLOBBER.include("data/pixels.rds")
 
   desc "single dataset plots"
   file "plots/ratio.png" => ["single_dataset_histogram.R", "data/pixels.rds"] do |f|
     sh "./#{f.prerequisites[0]} -f #{f.prerequisites[1]}"
   end
+  CLOBBER.include("plots/ratio.png")
 
 end
 
