@@ -3,8 +3,7 @@ import h5py
 import numpy as np
 from scipy import stats
 import matplotlib.pyplot as plt
-from matplotlib.widgets import LassoSelector
-from matplotlib import path
+from matplotlib.widgets import RectangleSelector
 import csv
 
 
@@ -16,29 +15,24 @@ def main(filename, outputname):
         ..., 0]
     fig, ax = plt.subplots()
     # limits = [0.7, 1]
-    limits = stats.mstats.mquantiles(dataset, prob=[0.1, 0.9])
+    limits = stats.mstats.mquantiles(dataset, prob=[0.02, 0.98])
     print(limits)
     image = ax.imshow(dataset, interpolation="none", aspect='auto')
     image.set_clim(*limits)
-    xv, yv = np.meshgrid(
-        np.arange(dataset.shape[0]),
-        np.arange(dataset.shape[1])
-    )
-    pix = np.transpose(np.vstack(
-        (yv.flatten(), xv.flatten())
-    ))
 
-    def onselect(verts):
-        global ind
-        p = path.Path(verts)
-        ind = p.contains_points(pix, radius=1)
-        ind = np.reshape(ind, dataset.shape, order="F")
+    def onselect(eclick, erelease):
+        global startpos
+        global endpos
+        startpos = [int(eclick.xdata), int(eclick.ydata)]
+        endpos = [int(erelease.xdata), int(erelease.ydata)]
 
     plt.ion()
-    lasso = LassoSelector(ax, onselect, lineprops={"color": "red"})
+    lasso = RectangleSelector(ax, onselect, lineprops={"color": "red"})
     plt.show()
     input('Press any key to accept selected points')
-    np.save(outputname, ind)
+    with open(outputname, "w") as outputfile:
+        output = " ".join([str(i) for i in startpos + endpos])
+        print(output, file=outputfile)
 
 if __name__ == "__main__":
     main()

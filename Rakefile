@@ -3,16 +3,24 @@ require "csv"
 datasets = CSV.table "microsphere_datasets.csv"
 
 def reconstructed_from_raw sample, flat
-  p "sample", sample
-  p "flat", flat
   file1 = File.basename(sample, ".*")
   file2 = File.basename(flat, ".*")
   dir = File.dirname(sample)
   File.join(dir, "#{file1}_#{file2}.h5")
 end
 
+def roi_from_reconstructed reconstructed
+    File.join(["data", File.basename(reconstructed, ".h5") + ".roi"])
+end
+
+def csv_from_reconstructed reconstructed
+    File.join(["data", File.basename(reconstructed, ".h5") + ".csv"])             
+end
+
 datasets[:reconstructed] = datasets[:sample].zip(
   datasets[:flat]).map {|s, f| reconstructed_from_raw(s, f)}
+datasets[:csv] = datasets[:reconstructed].map {|f| csv_from_reconstructed(f)}
+datasets[:roi] = datasets[:reconstructed].map {|f| roi_from_reconstructed(f)}
 
 
 namespace :reconstruction do
@@ -36,3 +44,37 @@ namespace :reconstruction do
   end
 
 end
+
+namespace :rectangle_selection do
+
+  datasets.each do |row|
+
+    desc "select the roi for #{row[:reconstructed]}"
+    file row[:roi] => ["rectangle_selection.py", row[:reconstructed]] do |f|
+      sh "python #{f.prerequisites[0]} #{f.prerequisites[1]} #{f.name}"
+    end
+
+    desc "export selection to #{row[:csv]}"
+    file row[:csv] => ["rectangle_data.py", row[:reconstructed], row[:roi]] do |f|
+      sh "python #{f.prerequisites[0]} #{f.prerequisites[1]} #{f.prerequisites[2]} #{f.name}"
+    end
+
+  end
+
+end
+
+namespace :analysis do
+
+  desc "merge the csv datasets into one table"
+  file "data/pixels.rds" => ["merge_datasets.R", "reconstructed.csv"] + datasets[:csv] do |f|
+    sh "./#{f.prerequisites[0]} -f #{f.prerequisites[1]} -o #{f.name}"
+  end
+
+  desc "single dataset plots"
+  file "plots/ratio.png" => ["single_dataset_histogram.R", "data/pixels.rds"] do |f|
+    sh "./#{f.prerequisites[0]} -f #{f.prerequisites[1]}"
+  end
+
+end
+
+task :default => ["plots/ratio.png"]
